@@ -135,33 +135,11 @@ def reward_feet_air_time_simple(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCf
 
 
 def reward_lift_up_linear(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Linearly reward lifting the base above a minimum height.
-
-    Reward = 0 below min height
-    Reward ramps from 0 → 1 between min and max height
-    Reward = 1 at or above max height
-    """
-    # Get base z position
-    z_pos = env.scene[asset_cfg.name].data.root_pos_w[:, 2]
-
-    # Define shaping thresholds (you can tune these)
-    min_height = 0.20  # reward starts here
-    max_height = 0.34  # full reward at this point
-
-    # Normalize reward linearly in [min_height, max_height]
-    reward = (z_pos - min_height) / (max_height - min_height)
-    reward = torch.clamp(reward, 0.0, 1.0)
-
-    # 👇 Add this to log to TensorBoard (if enabled)
-    if hasattr(env, "logger"):
-        env.logger.log_scalar("reward/lift_up_linear", reward.mean().item())
+    asset = env.scene[asset_cfg.name]
+    root_height = asset.data.root_pos_w[:, 2]
+    reward = (root_height - 0.15) / (0.42 - 0.15)
+    reward = torch.clamp(reward, 0., 1.)
     return reward
-    # base_height = env.scene[asset_cfg.name].data.root_pos_w[:, 2]
-    # standup = env.scene[asset_cfg.name].data.root_pos_w[:, 2] > 0.34
-    # return torch.exp(torch.abs(base_height - max_height) * -20) * standup
-
-
-    # return reward
 
 
 def reward_foot_shift(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -279,44 +257,19 @@ def reward_rear_air(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch
     return foot_touch_ground
 
 
-# def reward_feet_clearance(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-#     asset = env.scene[asset_cfg.name]
-#
-#     # Get rear foot indices
-#     rear_foot_names = ["RL_foot", "RR_foot"]
-#     foot_ids = [asset.body_names.index(name) for name in rear_foot_names]
-#
-#     # Get foot height and XY positions
-#     foot_heights = asset.data.body_pos_w[:, foot_ids, 2]  # (num_envs, 2)
-#     foot_xy = asset.data.body_pos_w[:, foot_ids, :2]  # (num_envs, 2, 2)
-#
-#     # Fake motion phase for now — replace with real gait phase if available
-#     # Range: [0, 1], peak = mid-swing
-#     phase = torch.abs(torch.sin(env.episode_length_buf.unsqueeze(1) / 30.0 * math.pi))  # (num_envs, 1)
-#     phase = phase.repeat(1, 2)  # Repeat for both feet
-#
-#     # Terrain height under feet
-#     # terrain_heights = env.scene["terrain"].get_heights_at(foot_xy)  # assumes API exists like Isaac Gym
-#     terrain_heights = 0
-#     target_clearance = 0.05  # target foot clearance in swing
-#
-#     target_heights = target_clearance * phase + terrain_heights + 0.02  # (num_envs, 2)
-#
-#     # Optional: mask out feet that should be in contact
-#     desired_contact = env.scene["contact_states"].data[asset_cfg.name][:, foot_ids]  # (num_envs, 2)
-#     in_swing = 1.0 - desired_contact.float()  # (1 - contact) = swing phase
-#
-#     # Compute reward
-#     clearance_error = torch.square(target_heights - foot_heights)
-#     reward = -clearance_error * in_swing  # penalize low feet during swing
-#
-#     # Apply after grace period
-#     grace_steps = 50
-#     active = (env.episode_length_buf >= grace_steps).float().unsqueeze(1)
-#     reward = reward * active
-#
-#     # Return scalar per env
-#     return reward.sum(dim=1)
+def feet_clearance_cmd_linear(env,asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
+    asset = env.scene[asset_cfg.name]
+    phases = 1 - torch.abs(1.0 - torch.clip((env.foot_indices[:, -2:] * 2.0) - 1.0, 0.0, 1.0) * 2.0)
+    feet_indices = torch.tensor([15,16,17,18], dtype=torch.int64, device='cuda:0')
+    foot_positions = asset.data.body_state_w[:, feet_indices, 0:3]
+    foot_height = (foot_positions[:, -2:, 2]).view(env.num_envs, -1)# - reference_heights
+    terrain_at_foot_height = env._get_heights_at_points(foot_positions[:, -2:, :2])
+    target_height = 0.05 * phases + terrain_at_foot_height + 0.02
+    rew_foot_clearance = torch.square(target_height - foot_height) * (1 - env.desired_contact_states[:, -2:])
+    condition = env.episode_length_buf > 30
+    rew_foot_clearance = rew_foot_clearance * condition.unsqueeze(dim=-1).float()
+    rew_foot_clearance = rew_foot_clearance
+    return torch.sum(rew_foot_clearance, dim=1)
 
 
 def action_rate_l2_early_training(env) -> torch.Tensor:
@@ -325,33 +278,35 @@ def action_rate_l2_early_training(env) -> torch.Tensor:
     return torch.sum(torch.square(env.action_manager.action - env.action_manager.prev_action), dim=1)
 
 
+def undesired_contacts(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize undesired contacts as the number of violations that are above a threshold."""
+    # extract the used quantities (to enable type-hinting)
+    contact_sensor = env.scene.sensors[sensor_cfg.name]
+    # check if contact force is above threshold
+    net_contact_forces = contact_sensor.data.net_forces_w_history
+    is_contact = torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold
+    # sum over contacts for each environment
 
+    reward = torch.sum(is_contact, dim=1)
+    cond = env.episode_length_buf > 30
+    reward = reward * cond.float()
+    return reward
 
-def feet_slip(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), contact_thresh=0.03):
+def feet_slip(env,asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     asset = env.scene[asset_cfg.name]
-
-    # Auto-fetch foot indices
-    feet_names = ["RL_foot", "RR_foot"]
-    feet_indices = torch.tensor(
-        [asset.body_names.index(name) for name in feet_names],
-        device=asset.device,
-        dtype=torch.int64,
-    )
-
+    feet_indices = torch.tensor([15, 16, 17, 18], dtype=torch.int64, device='cuda:0')
     foot_positions = asset.data.body_state_w[:, feet_indices, 0:3]
-    foot_lin_vel = asset.data.body_state_w[:, feet_indices, 7:10]
-    foot_ang_vel = asset.data.body_state_w[:, feet_indices, 10:13]
+    foot_velocities = asset.data.body_state_w[:, feet_indices, 7:10]  # shape: (num_envs, num_bodies, 13)
+    foot_velocities_ang = asset.data.body_state_w[:, feet_indices, 10:13]
+    condition = foot_positions[:, :, 2] < 0.03
+    # xy lin vel
+    foot_velocities = torch.square(torch.norm(foot_velocities[:, :, 0:2], dim=2).view(env.num_envs, -1))
+    # yaw ang vel
+    foot_ang_velocities = torch.square(torch.norm(foot_velocities_ang[:, :, 2:] / np.pi, dim=2).view(env.num_envs, -1))
+    rew_slip = torch.sum(condition.float() * (foot_velocities + foot_ang_velocities), dim=1)
+    return rew_slip
 
-    feet_in_contact = foot_positions[:, :, 2] < contact_thresh
 
-    # Compute squared velocity norms
-    xy_vel_sq = torch.sum(foot_lin_vel[:, :, :2] ** 2, dim=2)  # (num_envs, 4)
-    yaw_vel_sq = (foot_ang_vel[:, :, 2] / np.pi) ** 2          # normalize and square
-
-    # Slip penalty for contacting feet
-    slip_penalty = torch.sum(feet_in_contact * (xy_vel_sq + yaw_vel_sq), dim=1)
-    slip_penalty = torch.clamp(slip_penalty, max=10.0)
-    return slip_penalty
 
 
 def applied_torque_limits(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -375,40 +330,21 @@ def applied_torque_limits(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot
     return torque_limits_penalty
 
 
-def foot_shift(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """
-    Penalizes early foot movement after reset to encourage stable, planted feet.
-    Higher reward when feet stay near initial positions. Only applies during early steps.
-    """
+def foot_shift(env,asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     asset = env.scene[asset_cfg.name]
-    foot_pos = asset.data.body_pos_w  # shape: (num_envs, num_bodies, 3)
-
-    # Get foot indices
-    front_ids = [asset.body_names.index(name) for name in ["FL_foot", "FR_foot"]]
-    rear_ids  = [asset.body_names.index(name) for name in ["RL_foot", "RR_foot"]]
-
-    # Save initial foot positions if not already done
-    if getattr(env, "_init_foot_pos", None) is None:
-        env._init_foot_pos = torch.clone(foot_pos)
-
-    init_foot_pos = env._init_foot_pos
-
-    # Compute per-foot displacement in XY plane
-    front_shift = torch.norm(foot_pos[:, front_ids, :2] - init_foot_pos[:, front_ids, :2], dim=-1).mean(dim=1)
-    rear_shift  = torch.norm(foot_pos[:, rear_ids, :2]  - init_foot_pos[:, rear_ids, :2],  dim=-1).mean(dim=1)
-
-    # Only apply during early steps
-    grace_steps = 50
-    condition = (env.episode_length_buf < grace_steps).float()
-
-    # Penalize total shift
-    reward = -(front_shift + rear_shift) * condition
-
-# 👇 Add this to log to TensorBoard (if enabled)
-    if hasattr(env, "logger"):
-        env.logger.log_scalar("reward/reward_foot_shift", reward.mean().item())
+    feet_indices = torch.tensor([15, 16, 17, 18], dtype=torch.int64, device='cuda:0')
+    desired_foot_positions = torch.clone(env.init_feet_positions[:, 2:])
+    desired_foot_positions[:, :, 2] = 0.02
+    foot_positions = asset.data.body_state_w[:, feet_indices, 0:3]
+    rear_foot_shift = torch.norm(foot_positions[:, 2:] - desired_foot_positions, dim=-1).mean(dim=1)
+    init_ffoot_positions = torch.clone(env.init_feet_positions[:, :2])
+    front_foot_shift = torch.norm( torch.stack([
+            (init_ffoot_positions[:, :, 0] - foot_positions[:, :2, 0]).clamp(min=0),
+            torch.abs(init_ffoot_positions[:, :, 1] - foot_positions[:, :2, 1])
+        ], dim=-1), dim=-1).mean(dim=1)
+    condition = env.episode_length_buf < 30
+    reward = (front_foot_shift + rear_foot_shift) * condition.float()
     return reward
-
 
 def low_thigh_contacts(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     body_state = env.scene["robot"].data.body_state_w  # shape: (num_envs, num_bodies, 13)
@@ -468,4 +404,13 @@ def vertical_alignment(env:ManagerBasedRLEnv,  std: float, asset_cfg: SceneEntit
     foot_y = env.scene["robot"].data.body_pos_w[:, [17,18], 1]
     vertical_offset = torch.abs(hip_y - foot_y)
     reward = torch.exp(-torch.sum(vertical_offset, dim=1) / std ** 2)
+    return reward
+
+
+def action_q_diff(env:ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
+    asset = env.scene[asset_cfg.name]
+    condition = env.episode_length_buf <= 30
+    actions = torch.clip(env.action_manager.action, -100, 100)
+    q_diff_buf = torch.abs(asset.data.default_joint_pos + 0.25 * actions - asset.data.joint_pos)
+    reward = torch.sum(torch.square(q_diff_buf), dim=-1) * condition.float()
     return reward
