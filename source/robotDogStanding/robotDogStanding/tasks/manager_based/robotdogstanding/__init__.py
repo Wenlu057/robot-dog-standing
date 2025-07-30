@@ -14,7 +14,7 @@ from . import agents
 
 gym.register(
     id="Template-Robotdogstanding-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=f"{__name__}.robotdogstanding_env:robotdogStandingEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.robotdogstanding_env_cfg:RobotdogstandingEnvCfg",

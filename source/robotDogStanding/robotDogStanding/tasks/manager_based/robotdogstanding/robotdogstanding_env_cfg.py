@@ -72,9 +72,9 @@ class ActionsCfg:
         "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
         "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
     ],
-    # scale = 55.0
-    scale={".*_hip_joint": 10.0, "^(?!.*_hip_joint).*": 80.0, },
-    # clip={".*": (-100.0, 100.0)}
+    scale = 20,
+    # scale={".*_hip_joint": 10.0, "^(?!.*_hip_joint).*": 80.0, },
+    clip={".*": (-100.0, 100.0)}
     )
 
 
@@ -141,60 +141,73 @@ class EventCfg:
     """Configuration for events."""
 
     # reset
-    reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_offset,
+    # reset_robot_joints = EventTerm(
+    #     func=mdp.reset_joints_by_offset,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=[
+    #             "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+    #             "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+    #             "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+    #             "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
+    #         ]),
+    #         "position_range": (0.1, 0.3),
+    #         "velocity_range": (-0.1 * math.pi, 0.1 * math.pi),
+    #     },
+    # )
+    # #
+    # reset_robot_base = EventTerm(
+    #     func=mdp.reset_root_state_uniform,
+    #     mode='reset',
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=[
+    #             "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+    #             "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+    #             "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+    #             "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
+    #         ]),
+    #         # "pose_range": {
+    #         #     "x": (-0.05, 0.05),
+    #         #     "y": (-0.05, 0.05),
+    #         #     "z": (0.05, 0.1),  # sitting height
+    #         #     "roll": (0.0, 0.0),
+    #         #     "pitch": (-0.5, -0.3),  # leaning back slightly
+    #         #     "yaw": (-0.1, 0.1)
+    #         # },
+    #         "velocity_range": {
+    #             "x": (0.01, 0.01),
+    #             "y": (0.01, 0.01),
+    #             "z": (0.01, 0.01),
+    #             "roll": (0.01, 0.01),
+    #             "pitch": (0.01, 0.01),
+    #             "yaw": (0.01, 0.01),
+    #         },
+    #
+    #             "pose_range": {"x": (-0.1, 0.1), "y": (-0.1, 0.1), "yaw": (-0.1, 0.1)},
+    #                 "velocity_range": {
+    #                     "x": (-0.1, 0.1),
+    #                     "y": (-0.1, 0.1),
+    #                     "z": (-0.1, 0.15),
+    #                     "roll": (-0.1, 0.1),
+    #                     "pitch": (-0.8, 0),
+    #                     "yaw": (-0.1, 0.1),
+    #                 }
+    #     }
+    # )
+
+    reset_scene_to_default = EventTerm(
+        func=mdp.reset_scene_to_default,
         mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=[
-                "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
-                "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
-                "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
-                "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
-            ]),
-            "position_range": (0.1, 0.3),
-            "velocity_range": (-0.1 * math.pi, 0.1 * math.pi),
-        },
+        # params = {
+        #         "asset_cfg": SceneEntityCfg("robot", joint_names=[
+        #             "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+        #             "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+        #             "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+        #             "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
+        #         ])
+        # }
     )
-
-    reset_robot_base = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode='reset',
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=[
-                "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
-                "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
-                "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
-                "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
-            ]),
-            "pose_range": {
-                "x": (-0.05, 0.05),
-                "y": (-0.05, 0.05),
-                "z": (0.05, 0.1),  # sitting height
-                "roll": (0.0, 0.0),
-                "pitch": (-0.5, -0.3),  # leaning back slightly
-                "yaw": (-0.1, 0.1)
-            },
-            "velocity_range": {
-                "x": (0.01, 0.01),
-                "y": (0.01, 0.01),
-                "z": (0.01, 0.01),
-                "roll": (0.01, 0.01),
-                "pitch": (0.01, 0.01),
-                "yaw": (0.01, 0.01),
-            },
-
-            #     "pose_range": {"x": (-0.1, 0.1), "y": (-0.1, 0.1), "yaw": (-0.1, 0.1)},
-            #         "velocity_range": {
-            #             "x": (-0.1, 0.1),
-            #             "y": (-0.1, 0.1),
-            #             "z": (-0.1, 0.15),
-            #             "roll": (-0.1, 0.1),
-            #             "pitch": (-0.8, 0),
-            #             "yaw": (-0.1, 0.1),
-            #         }
-        }
-    )
-
+    pass
 
 @configclass
 class RewardsCfg:
@@ -207,15 +220,15 @@ class RewardsCfg:
 
 
     #
-    upright_pitch_reward = RewTerm(
-        func=mdp.reward_upright_pitch,
-        weight=10.0,  # adjust based on importance
-        params={"asset_cfg": SceneEntityCfg("robot")},
-    )
-    # stand_upright = RewTerm(
-    #     func=mdp.stand_upright,
-    #     weight=2.0, params={"asset_cfg": SceneEntityCfg("robot")},
+    # upright_pitch_reward = RewTerm(
+    #     func=mdp.reward_upright_pitch,
+    #     weight=10.0,  # adjust based on importance
+    #     params={"asset_cfg": SceneEntityCfg("robot")},
     # )
+    stand_upright = RewTerm(
+        func=mdp.stand_upright,
+        weight=1.0, params={"asset_cfg": SceneEntityCfg("robot")},
+    )
 
     # upright_penalty = RewTerm(
     #     func=mdp.upright_penalty,
@@ -226,7 +239,7 @@ class RewardsCfg:
 
     reward_lift_up_linear = RewTerm(
         func=mdp.reward_lift_up_linear,
-        weight=1.0,
+        weight=0.5,
         params={"asset_cfg": SceneEntityCfg("robot")}
     )
 
@@ -244,68 +257,69 @@ class RewardsCfg:
     #     params={"asset_cfg": SceneEntityCfg("robot")}
     # )
 
-    action_rate_l2_early_training = RewTerm(
+    action_rate_l2 = RewTerm(
         func=mdp.action_rate_l2_early_training,
-        weight = -10e-6
+        weight = -0.03
     )
     smooth_vel = RewTerm(
         func=mdp.joint_vel_l2,
-        weight=-10e-6
+        weight=-0.0001
     )
-    #
+
     smooth_acc= RewTerm(
         func=mdp.joint_acc_l2,
-        weight=-10e-6
+        weight=-2.5e-07
+    )
+    joint_pos_limits = RewTerm(
+        func=mdp.joint_pos_limits,
+        weight=-10
+    )
+    feet_clearance_cmd_linear = RewTerm(
+        func=mdp.feet_clearance_cmd_linear,
+        weight=-300
     )
     #
-    # feet_slip = RewTerm(
-    #     func=mdp.feet_slip,
-    #     weight=-0.01
-    # )
+    feet_slip = RewTerm(
+        func=mdp.feet_slip,
+        weight=-0.4
+    )
     #
     # applied_torque_limits = RewTerm(
     #     func=mdp.applied_torque_limits,
     #     weight=-0.01
     # )
     #
-    # foot_shift = RewTerm(
-    #     func=mdp.foot_shift,
-    #     weight=-0.01
-    # )
+    foot_shift = RewTerm(
+        func=mdp.foot_shift,
+        weight=-50
+    )
     #
     # ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     #
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
-        weight=1,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="(RL_foot|RL_foot)"), "threshold": 1.0},
+        weight=-2.0,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="^(?!RL_foot$|RR_foot$).*"), "threshold": 0.1},
     )
-    #
-    low_thigh_contacts = RewTerm(
-        func=mdp.low_thigh_contacts,
-        weight= 2,
-        params={"asset_cfg": SceneEntityCfg("robot")}
-    )
-    upward = RewTerm(
-        func=mdp.upward,
-        weight = 10,
-        params={"std":0.2,"asset_cfg": SceneEntityCfg("robot")}
-    )
+
     # feet_distance_y_exp= RewTerm(
     #     func=mdp.feet_distance_y_exp,
     #     weight=2,
     #     params={"stance_width":0.5, "std":0.2}
     # )
-    vertical_alignment = RewTerm(
-        func=mdp.vertical_alignment,
-        weight=-1,
-        params={"std":0.2}
+
+
+
+
+    action_q_diff = RewTerm(
+        func=mdp.action_q_diff,
+        weight = -1.0,
+        params={"asset_cfg": SceneEntityCfg("robot")}
     )
 
-    reward_foot_shift = RewTerm(
-        func=mdp.reward_foot_shift,
-        weight= -10,
-        params={"asset_cfg": SceneEntityCfg("robot")}
+    applied_torque_limits = RewTerm(
+        func=mdp.applied_torque_limits,
+        weight=-0.01
     )
 
 
@@ -317,10 +331,28 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
-    fell_over = DoneTerm(
-        func=mdp.base_too_low,
-        params={"asset_cfg": SceneEntityCfg("robot")}
-    )
+    # fell_over = DoneTerm(
+    #     func=mdp.base_too_low,
+    #     params={"asset_cfg": SceneEntityCfg("robot")}
+    # )
+
+    # bad_foot_contacts = DoneTerm(
+    #     func=mdp.bad_foot_contacts,
+    #     params={"asset_cfg": SceneEntityCfg("robot")}
+    # )
+
+    # position_protect = DoneTerm(
+    #     func=mdp.position_protect,
+    #     params={"asset_cfg": SceneEntityCfg("robot")}
+    # )
+    # stand_air_condition = DoneTerm(
+    #     func=mdp.stand_air_condition,
+    #     params={"asset_cfg": SceneEntityCfg("robot")}
+    # )
+    # abrupt_change_condition = DoneTerm(
+    #     func=mdp.abrupt_change_condition,
+    #     params={"asset_cfg": SceneEntityCfg("robot")}
+    # )
 
 ##
 # Environment configuration
@@ -351,3 +383,5 @@ class RobotdogstandingEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
+
+
