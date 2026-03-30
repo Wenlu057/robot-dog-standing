@@ -72,8 +72,8 @@ class ActionsCfg:
         "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
         "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
     ],
-    # scale = 20,
-    scale={".*_hip_joint": 10.0, "^(?!.*_hip_joint).*": 80.0, },
+    scale = 20,
+    # scale={".*_hip_joint": 10.0, "^(?!.*_hip_joint).*": 80.0, },
     clip={".*": (-100.0, 100.0)}
     )
 
